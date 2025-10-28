@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Online Shopping System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; max-width: 900px; }
+    h1 { margin-bottom: 0; }
+    form, .card { border: 1px solid #ddd; padding: 16px; border-radius: 8px; margin: 12px 0; }
+    button { padding: 6px 10px; cursor: pointer; margin-right: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    #inventorySection { display: none; }
+  </style>
+</head>
+
+<body>
+  <h1>Online Shopping System</h1>
+
+  <!-- Auth Section -->
+  <div id="authSection" class="card">
+    <form id="loginForm">
+      <h3>Login</h3>
+      <label>Username:</label><input name="username" required /><br/>
+      <label>Password:</label><input name="password" type="password" required /><br/>
+      <button type="submit">Login</button>
+      <p>Don't have an account? <a href="#" id="showSignup">Sign up</a></p>
+    </form>
+
+    <form id="signupForm" style="display:none">
+      <h3>Sign Up</h3>
+      <label>Username:</label><input name="username" required /><br/>
+      <label>Password:</label><input name="password" type="password" required /><br/>
+      <button type="submit">Sign Up</button>
+      <p>Already have an account? <a href="#" id="showLogin">Login</a></p>
+    </form>
+  </div>
+
+  <!-- Inventory Section -->
+  <div id="inventorySection">
+    <div class="card">
+      <p><strong>Logged in as:</strong> <span id="role"></span></p>
+      <button id="logout">Logout</button>
+    </div>
+
+    <div class="card">
+      <button id="refresh">Refresh Items</button>
+      <div id="status"></div>
+      <table id="itemsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Stock</th>
+            <th>Price</th>
+            <th id="actionsHeader">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Add Item Form (Admin Only) -->
+    <form id="addForm" style="display:none">
+      <h3>Add Item</h3>
+      <label>ID</label><input name="id" type="number" min="1" required />
+      <label>Name</label><input name="name" required />
+      <label>Stock</label><input name="stock" type="number" min="0" value="1" required />
+      <label>Price</label><input name="price" type="number" min="0" value="1" required />
+      <button type="submit">Add</button>
+    </form>
+
+    <!-- Purchase Form -->
+    <form id="purchaseForm">
+      <h3>Purchase Item</h3>
+      <label>Item ID</label><input name="id" type="number" min="1" required />
+      <label>Quantity</label><input name="quantity" type="number" min="1" value="1" required />
+      <button type="submit">Purchase</button>
+    </form>
+  </div>
+
+  <script>
+    const authSection = document.getElementById('authSection');
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    const showSignup = document.getElementById('showSignup');
+    const showLogin = document.getElementById('showLogin');
+
+    const inventorySection = document.getElementById('inventorySection');
+    const tbody = document.querySelector('#itemsTable tbody');
+    const actionsHeader = document.getElementById('actionsHeader');
+    const status = document.getElementById('status');
+    const addForm = document.getElementById('addForm');
+
+    let accessToken = localStorage.getItem('accessToken');
+    let refreshToken = localStorage.getItem('refreshToken');
+    let role = localStorage.getItem('role');
+
+    showSignup.addEventListener('click', e => { e.preventDefault(); loginForm.style.display='none'; signupForm.style.display='block'; });
+    showLogin.addEventListener('click', e => { e.preventDefault(); signupForm.style.display='none'; loginForm.style.display='block'; });
+    const purchaseForm = document.getElementById('purchaseForm');
+
+    function showInventory() {
+      authSection.style.display = 'none';
+      inventorySection.style.display = 'block';
+      document.getElementById('role').textContent = role;
+
+      if (role === 'user') {
+        actionsHeader.style.display = 'none';
+        addForm.style.display = 'none';
+        purchaseForm.style.display = 'block';
+      } else if (role === 'admin') {
+        actionsHeader.style.display = '';
+        addForm.style.display = 'block';
+        purchaseForm.style.display = 'none';
+      }
+
+      loadItems();
+    }
+
+    function showAuth() {
+      authSection.style.display = 'block';
+      inventorySection.style.display = 'none';
+      localStorage.clear();
+      accessToken = refreshToken = role = '';
+      loginForm.style.display = 'block';
+      signupForm.style.display = 'none';
+    }
+
+    if (accessToken && role) showInventory();
+
+    // Login
+    loginForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const username = e.target.username.value.trim();
+      const password = e.target.password.value.trim();
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.message);
+      accessToken = data.accessToken;
+      refreshToken = data.refreshToken;
+      role = data.role;
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('role', role);
+      showInventory();
+    });
+
+    // Signup
+    signupForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const username = e.target.username.value.trim();
+      const password = e.target.password.value.trim();
+      const res = await fetch('/signup', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.message);
+      alert('Signup successful! Please login.');
+      signupForm.reset();
+      signupForm.style.display='none';
+      loginForm.style.display='block';
+    });
+
+    document.getElementById('logout').addEventListener('click', async () => {
+      if(refreshToken){
+        await fetch('/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ token: refreshToken }) });
+      }
+      showAuth();
+    });
+
+    async function apiFetch(url, options={}) {
+      options.headers = { ...options.headers, Authorization:`Bearer ${accessToken}`, 'Content-Type':'application/json' };
+      let res = await fetch(url, options);
+      if(res.status===403 && refreshToken){
+        const r = await fetch('/refresh', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: refreshToken }) });
+        const d = await r.json();
+        if(r.ok){ accessToken = d.accessToken; localStorage.setItem('accessToken', accessToken); return apiFetch(url, options); }
+        else { alert('Session expired'); showAuth(); return; }
+      }
+      return res;
+    }
+
+    // Load items (NOW includes price)
+    async function loadItems(){
+      status.textContent='Loading...';
+      try{
+        const res = await apiFetch('/inventory');
+        const data = await res.json();
+        tbody.innerHTML = data.map(i=>`
+          <tr>
+            <td>${i.item_id}</td>
+            <td>${i.item_name}</td>
+            <td>${i.stock}</td>
+            <td>${i.price}</td>
+            <td style="${role==='user'?'display:none':''}">
+              ${role==='admin'?`<button onclick="updateItem(${i.item_id})">Update</button>
+              <button onclick="deleteItem(${i.item_id})">Delete</button>`:''}
+            </td>
+          </tr>
+        `).join('');
+      } catch(e){ tbody.innerHTML='<tr><td colspan="5">Error loading items</td></tr>'; }
+      status.textContent='';
+    }
+
+    // Admin actions (now includes price)
+    window.deleteItem = async id => { if(!confirm(`Delete item #${id}?`)) return; const res=await apiFetch(`/inventory/${id}`,{method:'DELETE'}); const data=await res.json(); alert(data.message); await loadItems(); }
+
+    window.updateItem = async id => { 
+      const name=prompt('Enter new name:'); 
+      const stock=Number(prompt('Enter new stock:')); 
+      const price=Number(prompt('Enter new price:')); 
+      if(!name || stock<0 || price<0) return; 
+      const res=await apiFetch(`/inventory/${id}`,{method:'PUT', body:JSON.stringify({name,stock,price})}); 
+      const data=await res.json(); 
+      alert(`Updated: ${data.item_name}`); 
+      await loadItems(); 
+    }
+
+    // Add item (admin)
+    addForm.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const id=Number(addForm.id.value); 
+      const name=addForm.name.value.trim(); 
+      const stock=Number(addForm.stock.value);
+      const price=Number(addForm.price.value);
+      const res = await apiFetch('/inventory',{method:'POST', body: JSON.stringify({id,name,stock,price})});
+      const data = await res.json(); 
+      alert(`Added: ${data.name}`); 
+      await loadItems(); 
+      addForm.reset();
+    });
+
+    // Purchase item
+    document.getElementById('purchaseForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const id = Number(e.target.id.value);
+      const quantity = Number(e.target.quantity.value);
+      const res = await apiFetch(`/inventory/purchase/${id}`, { method:'POST', body: JSON.stringify({ quantity }) });
+      const data = await res.json();
+      alert(data.message||'Done'); 
+      await loadItems(); 
+      e.target.reset();
+    });
+
+    document.getElementById('refresh').addEventListener('click', loadItems);
+  </script>
+</body>
+</html>
