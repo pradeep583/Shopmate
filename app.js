@@ -137,5 +137,11 @@ function verifyToken(req, res, next) {
 // Inventory routes (protected)
 app.use("/inventory", verifyToken, postsRouter);
 
+app.get("/", (req, res) => {
+  res.send("ShopMate is Live");
+});
+
+
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+
